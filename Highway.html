@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>고속도로 주행 시뮬레이션 (터치 버튼 확대판)</title>
+    <title>고속도로 주행 시뮬레이션 (빅사이즈 버튼)</title>
     <style>
         body {
             margin: 0;
@@ -63,15 +63,15 @@
         #scoreNum { color: #ffeb3b; }
         .dash-label { font-size: clamp(10px, 2.5vw, 12px); color: #aaa; margin-bottom: 2px; }
 
-        /* 터치 컨트롤러 (버튼 크기 대폭 확대) */
+        /* 터치 컨트롤러 레이아웃 (크기 대폭 확대 및 위치 미세조정) */
         #mobileControls {
             position: absolute;
-            bottom: 8%; /* 버튼이 커진 만큼 살짝 위로 올림 */
+            bottom: 4%; 
             left: 0;
             width: 100%;
             display: none; 
             justify-content: space-between;
-            padding: 0 4%;
+            padding: 0 15px;
             box-sizing: border-box;
             pointer-events: none; 
             z-index: 5;
@@ -79,33 +79,63 @@
 
         .d-pad {
             display: flex;
-            gap: 15px; /* 버튼 간격도 넓힘 */
+            flex-direction: row; 
+            gap: 12px; /* 버튼 사이 간격 확대 */
+            pointer-events: auto;
+            align-items: flex-end;
         }
 
-        .d-pad button {
-            pointer-events: auto; 
-            /* 버튼 크기를 70px ~ 100px 수준으로 대폭 상향 */
-            width: clamp(70px, 18vw, 100px);
-            height: clamp(70px, 18vw, 100px);
+        /* 왼쪽 조향 버튼 스타일 (크기 확대) */
+        .left-pad button {
+            width: clamp(75px, 18vw, 95px);
+            height: clamp(75px, 18vw, 95px);
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.15);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            color: rgba(255, 255, 255, 0.7);
-            /* 폰트(화살표) 크기도 24px ~ 36px 수준으로 상향 */
-            font-size: clamp(24px, 7vw, 36px);
+            background: rgba(0, 0, 0, 0.75);
+            border: 3px solid rgba(255, 255, 255, 0.5);
+            color: #fff;
+            font-size: clamp(22px, 5vw, 30px);
             display: flex;
             justify-content: center;
             align-items: center;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
-            cursor: pointer;
-            backdrop-filter: blur(2px); 
         }
 
-        .d-pad button:active {
-            background: rgba(0, 255, 204, 0.4);
-            border-color: #00ffcc;
+        /* 오른쪽 페달 버튼 스타일 (면적 및 세로 길이 확대) */
+        .right-pad button {
+            width: clamp(65px, 16vw, 85px); /* 가로폭 확대 */
+            height: clamp(100px, 24vw, 130px); /* 세로폭 확대 */
+            border-radius: 12px; 
+            background: rgba(25 decad, 25, 25, 0.85);
+            border: 3px solid rgba(255, 255, 255, 0.5);
             color: #fff;
+            font-weight: bold;
+            font-size: clamp(14px, 3.5vw, 18px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.9);
+            gap: 5px;
+        }
+
+        /* 개별 페달 포인트 컬러 설정 */
+        #btnDown { border-left: 5px solid #ff3333; } 
+        #btnUp { border-left: 5px solid #00ffcc; }   
+
+        .left-pad button:active {
+            background: rgba(0, 255, 204, 0.6);
+            border-color: #00ffcc;
+        }
+        #btnDown:active {
+            background: rgba(255, 51, 51, 0.5);
+            border-color: #ff3333;
+        }
+        #btnUp:active {
+            background: rgba(0, 255, 204, 0.5);
+            border-color: #00ffcc;
         }
 
         @media (hover: none) and (pointer: coarse), (max-width: 768px) {
@@ -180,8 +210,8 @@
                 <button id="btnRight">▶</button>
             </div>
             <div class="d-pad right-pad">
-                <button id="btnDown">▼</button>
-                <button id="btnUp">▲</button>
+                <button id="btnDown"><span>STOP</span><span>▼</span></button>
+                <button id="btnUp"><span>GAS</span><span>▲</span></button>
             </div>
         </div>
 
