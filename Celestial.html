@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-    <title>소행성 키우기 (모바일 반응형 + iframe 호환 버전)</title>
+    <title>소행성 키우기 (UI 간소화 및 0점 시작 패치)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -28,23 +28,23 @@
             width: 100vw;
             height: 100vh;
         }
-        /* 반응형 UI 레이아웃 */
+        
+        /* 반응형 UI 레이아웃 최적화 */
         #ui {
             position: absolute;
-            top: 4%;
-            left: 4%;
-            font-size: 4.5vw; /* 화면 크기에 비례하는 폰트 세팅 */
+            top: 20px;
+            left: 20px;
+            font-size: clamp(18px, 4vw, 24px); 
             font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            text-shadow: 2px 2px 5px rgba(0,0,0,0.9);
             pointer-events: none;
-            background: rgba(0,0,0,0.5);
-            padding: 8px 14px;
-            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
             z-index: 5;
             max-width: 90%;
-        }
-        @media (min-width: 768px) {
-            #ui { font-size: 18px; top: 20px; left: 20px; }
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
         
         /* 팝업창 반응형 스타일 */
@@ -81,7 +81,7 @@
             cursor: pointer;
             transition: 0.2s;
             margin-top: 10px;
-            width: 100%; /* 모바일 터치 영역 확보 */
+            width: 100%; 
         }
         #gameover button { background: #ff4444; }
         #gameover button:hover { background: #ff6666; }
@@ -93,39 +93,13 @@
             color: #777;
             margin-top: 12px;
         }
-
-        /* 모바일 가상 조이스틱 스타일 */
-        #joystick-container {
-            display: none; /* 기본 숨김, 모바일 터치 감지 시 노출 */
-            position: absolute;
-            bottom: 40px;
-            left: 40px;
-            width: 110px;
-            height: 110px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 2px solid rgba(255, 255, 255, 0.25);
-            border-radius: 50%;
-            z-index: 5;
-            touch-action: none;
-        }
-        #joystick-stick {
-            position: absolute;
-            top: 32px;
-            left: 32px;
-            width: 42px;
-            height: 42px;
-            background: rgba(255, 255, 255, 0.7);
-            border-radius: 50%;
-            box-shadow: 0 0 10px rgba(255,255,255,0.5);
-            transition: background 0.1s;
-        }
     </style>
 </head>
 <body>
 
     <div id="ui">
-        <div>크기(질량): <span id="score">15</span> / <span id="target-score">250</span></div>
-        <div id="control-hint" style="font-size: 12px; color: #aaa; margin-top: 5px;">조작: 방향키 또는 WASD</div>
+        <div>현재 점수: <span id="score">0</span></div>
+        <div id="control-hint" style="font-size: 0.65em; color: #ccc; margin-top: 6px; font-weight: normal;">조작: 방향키, WASD 또는 화면 터치 드래그</div>
     </div>
     
     <div id="gameover" class="popup">
@@ -142,25 +116,17 @@
         <div class="hint-text" id="reset-hint-clear">[ 스페이스바 ]나 화면을 터치하세요.</div>
     </div>
 
-    <div id="joystick-container">
-        <div id="joystick-stick"></div>
-    </div>
-
     <canvas id="gameCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
-        const targetScoreEl = document.getElementById('target-score');
         const gameOverEl = document.getElementById('gameover');
         const gameClearEl = document.getElementById('gameclear');
         const controlHintEl = document.getElementById('control-hint');
         const resetHintOver = document.getElementById('reset-hint-over');
         const resetHintClear = document.getElementById('reset-hint-clear');
-        
-        const joystickContainer = document.getElementById('joystick-container');
-        const joystickStick = document.getElementById('joystick-stick');
 
         function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -171,8 +137,6 @@
 
         const WIN_MASS_LIMIT = 10000; 
         const CELESTIAL_COLLISION_MODE = 'SMALLER_DESTROY'; 
-
-        targetScoreEl.innerText = WIN_MASS_LIMIT;
 
         let isGameOver = false;
         let isGameClear = false;
@@ -187,13 +151,14 @@
         let globalScoreMultiplier = 1.0; 
         const SCALE_TRIGGER_LIMIT = 60;  
 
-        // 조작 변수 스택
         const keys = {
             ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
             w: false, s: false, a: false, d: false
         };
         
-        let joystickVector = { x: 0, y: 0 };
+        let touchStartPos = { x: 0, y: 0 };
+        let touchMoveVector = { x: 0, y: 0 };
+        let touchActive = false;
         let isMobile = false;
 
         let camera = { 
@@ -218,7 +183,6 @@
         const GRAVITY_CONSTANT = 35.0;   
         const MAX_CELESTIALS = 60;    
 
-        // 🛠️ 핵심 변경 및 결합: 외부/내부 입력을 동일하게 가로채 처리하는 핸들러 함수 정의
         function handleGameKeyDown(key) {
             if (key in keys) keys[key] = true;
             if (key === ' ' || key === 'Spacebar') {
@@ -232,7 +196,6 @@
             if (key in keys) keys[key] = false;
         }
 
-        // PC 자체 키보드 입력 스택 (iframe에 직접 포커스가 잡혀있을 때 작동)
         window.addEventListener('keydown', (e) => {
             handleGameKeyDown(e.key);
         });
@@ -240,7 +203,6 @@
             handleGameKeyUp(e.key);
         });
 
-        // 🛠️ 부모 페이지(index.html)에서 postMessage로 전달한 키 이벤트를 수신하는 리스너 연동
         window.addEventListener('message', (e) => {
             if (!e.data || !e.data.type) return;
 
@@ -251,18 +213,48 @@
             }
         });
 
-        // 모바일 및 터치 인터페이스 대응 시스템 연동
         function enableMobileUI() {
             if (isMobile) return;
             isMobile = true;
-            joystickContainer.style.display = 'block'; 
-            controlHintEl.innerText = "조작: 왼쪽 가상 조이스틱 패드 드래그";
             resetHintOver.innerText = "팝업창 또는 화면을 터치해 재시작";
             resetHintClear.innerText = "팝업창 또는 화면을 터치해 재시작";
         }
 
-        window.addEventListener('touchstart', () => {
+        window.addEventListener('touchstart', (e) => {
             enableMobileUI();
+            if (isGameOver || isGameClear) return;
+            
+            touchActive = true;
+            const touch = e.touches[0];
+            touchStartPos.x = touch.clientX;
+            touchStartPos.y = touch.clientY;
+            touchMoveVector.x = 0;
+            touchMoveVector.y = 0;
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+            if (!touchActive) return;
+            
+            const touch = e.touches[0];
+            const dx = touch.clientX - touchStartPos.x;
+            const dy = touch.clientY - touchStartPos.y;
+            const dist = Math.hypot(dx, dy);
+
+            const maxDragRange = 40; 
+            if (dist === 0) {
+                touchMoveVector.x = 0;
+                touchMoveVector.y = 0;
+            } else {
+                const scalar = Math.min(dist, maxDragRange) / maxDragRange;
+                touchMoveVector.x = (dx / dist) * scalar;
+                touchMoveVector.y = (dy / dist) * scalar;
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchend', () => {
+            touchActive = false;
+            touchMoveVector.x = 0;
+            touchMoveVector.y = 0;
         }, { passive: true });
 
         window.addEventListener('click', () => {
@@ -270,48 +262,6 @@
                 resetGame();
             }
         });
-
-        // 조이스틱 제어 물리 연산 스크립트 파트
-        let joystickActive = false;
-        let joystickCenter = { x: 0, y: 0 };
-        const JOYSTICK_MAX_DIST = 40; 
-
-        joystickContainer.addEventListener('touchstart', (e) => {
-            enableMobileUI();
-            joystickActive = true;
-            joystickStick.style.background = "rgba(255, 255, 255, 0.9)";
-            const rect = joystickContainer.getBoundingClientRect();
-            joystickCenter.x = rect.left + rect.width / 2;
-            joystickCenter.y = rect.top + rect.height / 2;
-        }, { passive: true });
-
-        window.addEventListener('touchmove', (e) => {
-            if (!joystickActive) return;
-            
-            const touch = e.touches[0];
-            let dx = touch.clientX - joystickCenter.x;
-            let dy = touch.clientY - joystickCenter.y;
-            let dist = Math.hypot(dx, dy);
-
-            if (dist > JOYSTICK_MAX_DIST) {
-                dx = (dx / dist) * JOYSTICK_MAX_DIST;
-                dy = (dy / dist) * JOYSTICK_MAX_DIST;
-            }
-
-            joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
-
-            joystickVector.x = dx / JOYSTICK_MAX_DIST;
-            joystickVector.y = dy / JOYSTICK_MAX_DIST;
-        }, { passive: true }); 
-
-        window.addEventListener('touchend', () => {
-            if (!joystickActive) return;
-            joystickActive = false;
-            joystickStick.style.transform = `translate(0px, 0px)`;
-            joystickStick.style.background = "rgba(255, 255, 255, 0.7)";
-            joystickVector.x = 0;
-            joystickVector.y = 0;
-        }, { passive: true });
 
 
         class Celestial {
@@ -507,9 +457,9 @@
             if (keys.ArrowLeft || keys.a) player.vx -= BASE_ACCELERATION / camera.zoom;
             if (keys.ArrowRight || keys.d) player.vx += BASE_ACCELERATION / camera.zoom;
 
-            if (isMobile && (joystickVector.x !== 0 || joystickVector.y !== 0)) {
-                player.vx += joystickVector.x * (BASE_ACCELERATION * 1.5 / camera.zoom);
-                player.vy += joystickVector.y * (BASE_ACCELERATION * 1.5 / camera.zoom);
+            if (touchActive && (touchMoveVector.x !== 0 || touchMoveVector.y !== 0)) {
+                player.vx += touchMoveVector.x * (BASE_ACCELERATION * 1.5 / camera.zoom);
+                player.vy += touchMoveVector.y * (BASE_ACCELERATION * 1.5 / camera.zoom);
             }
 
             player.vx *= Math.exp(-FRICTION_DECAY * dt);
@@ -581,6 +531,8 @@
                         celestials.splice(index, 1);
                     }
                 });
+                
+                scoreEl.innerText = WIN_MASS_LIMIT;
                 return;
             }
 
@@ -618,7 +570,10 @@
                         }
 
                         let currentActualMass = player.radius * globalScoreMultiplier;
-                        if (currentActualMass >= WIN_MASS_LIMIT) {
+                        // 🛠️ 시작 크기(15)를 제외하여 순수 0점부터 올라가도록 연산 동기화
+                        let currentScore = Math.max(0, Math.floor(currentActualMass - 15));
+
+                        if (currentScore >= WIN_MASS_LIMIT) {
                             startBlackholeSequence();
                             return;
                         }
@@ -665,12 +620,14 @@
                 }
             }
 
-            scoreEl.innerText = Math.floor(player.radius * globalScoreMultiplier);
+            // 🛠️ 초기 본체 크기(15) 차감 연산으로 0점부터 정직하게 상승
+            scoreEl.innerText = Math.max(0, Math.floor(player.radius * globalScoreMultiplier - 15));
         }
 
         function startBlackholeSequence() {
             isBlackholing = true;
             player.color = '#000002'; 
+            scoreEl.innerText = WIN_MASS_LIMIT; // 🛠️ 블랙홀 시퀀스 진입 순간 클리어 스코어로 즉시 못박기
             
             for (let i = 0; i < 120; i++) {
                 particles.push(new Particle(0, 0, 'blackhole'));
