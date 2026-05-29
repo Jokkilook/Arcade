@@ -3,22 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>고속도로 주행 시뮬레이션 (모바일 호환)</title>
+    <title>고속도로 주행 시뮬레이션 (터치 버튼 확대판)</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            background-color: #111; /* 바깥 여백 배경색 */
+            background-color: #111;
             font-family: 'Arial', sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100dvh; /* 모바일 브라우저 UI를 고려한 동적 높이 */
+            height: 100dvh; 
             overflow: hidden;
-            touch-action: none; /* 모바일 스크롤 및 당겨서 새로고침 방지 */
+            touch-action: none; 
         }
 
-        /* 반응형 컨테이너: 기본적으로 높이에 맞추되 최대 크기 제한 */
         #gameContainer {
             position: relative;
             background-color: #222;
@@ -30,7 +29,6 @@
             overflow: hidden;
         }
 
-        /* 화면 폭이 좁은 기기(스마트폰 세로 모드)에서는 폭에 맞춤 */
         @media (max-aspect-ratio: 520/900) {
             #gameContainer {
                 width: 100vw;
@@ -45,7 +43,6 @@
             background-color: #333;
         }
 
-        /* 계기판 UI */
         #dashboard {
             position: absolute;
             top: 4%;
@@ -59,53 +56,50 @@
         }
 
         #speedNum, #scoreNum {
-            font-size: clamp(18px, 4vw, 24px); /* 화면 크기에 따른 유동적 폰트 */
+            font-size: clamp(18px, 4vw, 24px); 
             font-weight: bold;
             color: #00ffcc;
         }
         #scoreNum { color: #ffeb3b; }
         .dash-label { font-size: clamp(10px, 2.5vw, 12px); color: #aaa; margin-bottom: 2px; }
 
-        /* 터치 컨트롤러 (모바일용 가상 버튼) */
+        /* 터치 컨트롤러 (버튼 크기 대폭 확대) */
         #mobileControls {
             position: absolute;
-            bottom: 5%;
+            bottom: 8%; /* 버튼이 커진 만큼 살짝 위로 올림 */
             left: 0;
             width: 100%;
-            display: none; /* 기본 데스크탑에서는 숨김 */
+            display: none; 
             justify-content: space-between;
             padding: 0 4%;
             box-sizing: border-box;
-            pointer-events: none; /* 빈 공간 터치 통과 */
+            pointer-events: none; 
             z-index: 5;
-        }
-
-        /* index 페이지에서 외부 조작 버튼을 쓸 때는, 내부 버튼은 숨김 */
-        body.external-controls #mobileControls {
-            display: none !important;
         }
 
         .d-pad {
             display: flex;
-            gap: 10px;
+            gap: 15px; /* 버튼 간격도 넓힘 */
         }
 
         .d-pad button {
-            pointer-events: auto; /* 버튼 부분만 터치 활성화 */
-            width: clamp(50px, 12vw, 70px);
-            height: clamp(50px, 12vw, 70px);
+            pointer-events: auto; 
+            /* 버튼 크기를 70px ~ 100px 수준으로 대폭 상향 */
+            width: clamp(70px, 18vw, 100px);
+            height: clamp(70px, 18vw, 100px);
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.15);
             border: 2px solid rgba(255, 255, 255, 0.3);
             color: rgba(255, 255, 255, 0.7);
-            font-size: clamp(18px, 5vw, 24px);
+            /* 폰트(화살표) 크기도 24px ~ 36px 수준으로 상향 */
+            font-size: clamp(24px, 7vw, 36px);
             display: flex;
             justify-content: center;
             align-items: center;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
             cursor: pointer;
-            backdrop-filter: blur(2px); /* 모던한 블러 효과 */
+            backdrop-filter: blur(2px); 
         }
 
         .d-pad button:active {
@@ -114,12 +108,10 @@
             color: #fff;
         }
 
-        /* 터치 지원 기기 또는 좁은 화면에서 가상 버튼 표시 */
         @media (hover: none) and (pointer: coarse), (max-width: 768px) {
             #mobileControls { display: flex; }
         }
 
-        /* 공통 오버레이 (시작 & 게임오버) */
         .screen-overlay {
             position: absolute;
             top: 0;
@@ -134,7 +126,7 @@
             align-items: center;
             z-index: 20;
             text-align: center;
-            cursor: pointer; /* 클릭/터치 가능함을 알림 */
+            cursor: pointer; 
         }
 
         #startScreen h1 {
@@ -254,63 +246,6 @@
 
         const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
 
-        // ----------------------------------------------------
-        // [입력 제어] 키보드 & 화면 터치 이벤트 동기화
-        // ----------------------------------------------------
-        
-        // 💡 부모 웹사이트(index.html)에서 보내는 가상 패드 조작 신호를 받는 리스너 추가
-        window.addEventListener('message', function(event) {
-            const data = event.data;
-            if (!data || typeof data !== 'object') return;
-
-            // 1. 방향키 및 가감속 키 처리 (setKey)
-            if (data.action === 'setKey' && data.key) {
-                // 기존 Highway.html 내부에 선언된 keys 객체에 상태 반영
-                if (data.key in keys) {
-                    keys[data.key] = data.pressed;
-                }
-            }
-
-            // 2. START 버튼 처리 (screenAction)
-            if (data.action === 'screenAction') {
-                if (gameState === 'TITLE') {
-                    // 타이틀 화면이면 게임 시작
-                    gameState = 'PLAYING';
-                    if (bgm && bgm.paused) {
-                        bgm.play().catch(() => {});
-                    }
-                } else if (gameState === 'GAMEOVER') {
-                    // 게임 오버 화면이면 변수 초기화 후 재시작
-                    resetGame();
-                    gameState = 'PLAYING';
-                }
-            }
-        });
-        
-        // 부모(index)에서 postMessage로 조작(모바일 외부 버튼 등)
-        window.addEventListener('message', (event) => {
-            const data = event?.data;
-            if (!data || data.type !== 'arcade-control') return;
-
-            if (data.action === 'config') {
-                Object.keys(keys).forEach(k => { keys[k] = false; });
-                if (data.externalControls) document.body.classList.add('external-controls');
-                else document.body.classList.remove('external-controls');
-                return;
-            }
-
-            if (data.action === 'setKey') {
-                const key = data.key;
-                if (key in keys) keys[key] = Boolean(data.pressed);
-                return;
-            }
-
-            if (data.action === 'screenAction') {
-                handleScreenAction();
-            }
-        });
-        
-        // 1. 키보드 이벤트
         window.addEventListener('keydown', (e) => {
             if (e.key === " " || e.code === "Space") {
                 e.preventDefault();
@@ -324,7 +259,6 @@
         });
         window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
 
-        // 2. 오버레이 화면 터치/클릭 시 시작
         function handleScreenAction() {
             if (!isGameStarted) {
                 startGame();
@@ -335,7 +269,6 @@
         startScreen.addEventListener('pointerdown', handleScreenAction);
         gameOverScreen.addEventListener('pointerdown', handleScreenAction);
 
-        // 3. 가상 터치 버튼 이벤트 바인딩 함수
         function bindVirtualButton(btnId, keyName) {
             const btn = document.getElementById(btnId);
             const press = (e) => { e.preventDefault(); keys[keyName] = true; };
@@ -345,7 +278,6 @@
             btn.addEventListener('touchend', release, {passive: false});
             btn.addEventListener('touchcancel', release, {passive: false});
             
-            // 마우스 환경 테스트용
             btn.addEventListener('mousedown', press);
             window.addEventListener('mouseup', release);
         }
@@ -354,8 +286,6 @@
         bindVirtualButton('btnRight', 'ArrowRight');
         bindVirtualButton('btnUp', 'ArrowUp');
         bindVirtualButton('btnDown', 'ArrowDown');
-
-        // ----------------------------------------------------
 
         const carTypes = [
             { type: 'sedan', width: 40, height: 70, speedMin: 70, speedMax: 100 },
