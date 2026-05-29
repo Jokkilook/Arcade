@@ -1,161 +1,119 @@
 document.addEventListener('DOMContentLoaded', () => {
     const tabs = document.querySelectorAll('.tab-btn');
     const panels = document.querySelectorAll('.tab-panel');
-    const highwayFrame = document.getElementById('highwayFrame');
-    const highwayControls = document.querySelector('#game3 .panel-controls--highway');
 
+    // 현재 활성화된 패널 가져오기
     function getActivePanel() {
         return document.querySelector('.tab-panel.active');
     }
 
-    function isMobileLayout() {
-        if (!window.matchMedia) return false;
-        return window.matchMedia('(hover: none) and (pointer: coarse)').matches || window.matchMedia('(max-width: 768px)').matches;
-    }
-
+    // 각 가상 게임의 오리지널 해상도 가져오기
     function getNativeSize(iframe) {
-        const nativeWidth = Number(iframe?.dataset?.nativeWidth);
-        const nativeHeight = Number(iframe?.dataset?.nativeHeight);
-
-        if (Number.isFinite(nativeWidth) && nativeWidth > 0 && Number.isFinite(nativeHeight) && nativeHeight > 0) {
-            return { nativeWidth, nativeHeight };
-        }
-
-        return { nativeWidth: 1280, nativeHeight: 720 };
+        const nativeWidth = Number(iframe?.dataset?.nativeWidth) || 1280;
+        const nativeHeight = Number(iframe?.dataset?.nativeHeight) || 720;
+        return { nativeWidth, nativeHeight };
     }
 
-    function getViewportForPanel(panel) {
-        return panel?.querySelector?.('.panel-viewport') || panel;
-    }
-
+    // 💡 화면 크기 및 반응형 레이아웃 계산 함수
     function layoutActiveIframe() {
         const activePanel = getActivePanel();
         if (!activePanel) return;
 
         const iframe = activePanel.querySelector('iframe');
-        if (!iframe) return;
-
-        const viewport = getViewportForPanel(activePanel);
-        const rect = viewport.getBoundingClientRect();
-
-        if (rect.width <= 0 || rect.height <= 0) return;
-
-        if (isMobileLayout()) {
-            iframe.style.width = '100%';
-            iframe.style.height = '100%';
-            iframe.style.left = '0px';
-            iframe.style.top = '0px';
-            iframe.style.transformOrigin = '';
-            iframe.style.transform = '';
-            return;
-        }
+        const viewport = activePanel.querySelector('.panel-viewport');
+        if (!iframe || !viewport) return;
 
         const { nativeWidth, nativeHeight } = getNativeSize(iframe);
-        const scale = Math.min(rect.width / nativeWidth, rect.height / nativeHeight);
-        const scaledWidth = nativeWidth * scale;
-        const scaledHeight = nativeHeight * scale;
+        
+        // 뷰포트가 가질 수 있는 최대 가로폭 확보
+        const containerWidth = viewport.parentElement.clientWidth - 30; // 패딩값 제외
+        
+        // 원본 해상도 대비 현재 늘어날 수 있는 스케일 비율 계산
+        let scale = containerWidth / nativeWidth;
+        
+        // 만약 화면이 너무 커서 원본 게임 크기를 초과한다면 1배수로 고정 (깨짐 방지)
+        if (scale > 1) scale = 1;
 
-        const offsetLeft = (rect.width - scaledWidth) / 2;
-        const offsetTop = (rect.height - scaledHeight) / 2;
-
+        // 원본 크기 설정 후 CSS Scale 적용
         iframe.style.width = `${nativeWidth}px`;
         iframe.style.height = `${nativeHeight}px`;
-        iframe.style.left = `${Math.max(0, offsetLeft)}px`;
-        iframe.style.top = `${Math.max(0, offsetTop)}px`;
-        iframe.style.transformOrigin = 'top left';
         iframe.style.transform = `scale(${scale})`;
+
+        // 💡 중요: 비율대로 찌그러진 iframe만큼 부모 뷰포트 영역의 크기도 강제 설정해줌 (잘림 방지)
+        viewport.style.width = `${nativeWidth * scale}px`;
+        viewport.style.height = `${nativeHeight * scale}px`;
     }
 
-    function postToHighway(data) {
-        if (!highwayFrame?.contentWindow) return;
-        highwayFrame.contentWindow.postMessage({ type: 'arcade-control', ...data }, '*');
-    }
-
-    function syncHighwayControlMode() {
-        if (!highwayFrame) return;
-        postToHighway({ action: 'config', externalControls: isMobileLayout() });
-    }
-
+    // 탭 전환 기능
     function activateTab(tabId) {
-        tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
-        panels.forEach(p => p.classList.toggle('active', p.id === tabId));
-
-        try {
-            history.replaceState(null, '', `#${tabId}`);
-        } catch {
-            // ignore
-        }
-
-        // display:none -> block 변경 직후에는 측정값이 0일 수 있어서 한 프레임 미룸
-        requestAnimationFrame(() => {
-            layoutActiveIframe();
-            if (tabId === 'game3') syncHighwayControlMode();
-            const iframe = document.getElementById(tabId)?.querySelector('iframe');
-            iframe?.focus?.();
+        tabs.forEach(tab => {
+            if (tab.getAttribute('data-tab') === tabId) {
+                tab.classList.add('active');
+            } else {
+                tab.classList.remove('active');
+            }
         });
+
+        panels.forEach(panel => {
+            if (panel.id === tabId) {
+                panel.classList.add('active');
+                // 포커스를 주어 키보드 이벤트 조작성 향상
+                setTimeout(() => {
+                    panel.querySelector('iframe')?.focus();
+                }, 50);
+            } else {
+                panel.classList.remove('active');
+            }
+        });
+
+        // 탭이 바뀌었으므로 레이아웃 리사이즈 재계산
+        layoutActiveIframe();
     }
 
+    // 탭 이벤트 리스너 바인딩
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
-            const targetTab = tab.dataset.tab;
-            if (!targetTab) return;
-            activateTab(targetTab);
+            const target = tab.getAttribute('data-tab');
+            activateTab(target);
         });
     });
 
-    window.addEventListener('resize', () => {
-        layoutActiveIframe();
-        syncHighwayControlMode();
-    });
+    // 브라우저 크기가 바뀔 때마다 실시간으로 게임 화면 스케일 조작
+    window.addEventListener('resize', layoutActiveIframe);
 
-    if (highwayFrame) {
-        highwayFrame.addEventListener('load', () => {
-            syncHighwayControlMode();
-        });
-    }
+    // 초기 실행
+    layoutActiveIframe();
 
-    if (highwayControls) {
-        const keyButtons = highwayControls.querySelectorAll('button[data-key]');
-        keyButtons.forEach(button => {
+    // 💡 모바일 가상 패드 연동 코드 (기존 작성하신 로직 유지 및 Highway 보완)
+    const highwayControls = document.querySelector('.panel-controls--highway');
+    const highwayFrame = document.getElementById('highwayFrame');
+
+    if (highwayControls && highwayFrame) {
+        const postToHighway = (data) => {
+            highwayFrame.contentWindow?.postMessage(data, '*');
+        };
+
+        highwayControls.querySelectorAll('.control-btn[data-key]').forEach(button => {
             const key = button.dataset.key;
-            if (!key) return;
 
-            const press = (event) => {
-                event.preventDefault();
-                if (button.setPointerCapture && typeof event.pointerId === 'number') {
-                    try { button.setPointerCapture(event.pointerId); } catch { /* ignore */ }
-                }
+            const press = (e) => {
+                e.preventDefault();
                 postToHighway({ action: 'setKey', key, pressed: true });
             };
-
-            const release = (event) => {
-                event.preventDefault();
+            const release = (e) => {
+                e.preventDefault();
                 postToHighway({ action: 'setKey', key, pressed: false });
             };
 
             button.addEventListener('pointerdown', press);
             button.addEventListener('pointerup', release);
             button.addEventListener('pointercancel', release);
-            button.addEventListener('lostpointercapture', release);
         });
 
-        const actionButton = highwayControls.querySelector('button[data-action="screenAction"]');
-        actionButton?.addEventListener('click', (event) => {
-            event.preventDefault();
+        const actionBtn = highwayControls.querySelector('[data-action="screenAction"]');
+        actionBtn?.addEventListener('click', (e) => {
+            e.preventDefault();
             postToHighway({ action: 'screenAction' });
-        });
-    }
-
-    const initialTabId = (window.location.hash || '').replace('#', '');
-    const hasInitialTab = Boolean(initialTabId && document.getElementById(initialTabId)?.classList?.contains('tab-panel'));
-
-    // 초기 로딩 시: 해시가 있으면 해당 탭, 없으면 기본(첫 탭)
-    if (hasInitialTab) {
-        activateTab(initialTabId);
-    } else {
-        requestAnimationFrame(() => {
-            layoutActiveIframe();
-            syncHighwayControlMode();
         });
     }
 });

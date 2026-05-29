@@ -257,7 +257,36 @@
         // ----------------------------------------------------
         // [입력 제어] 키보드 & 화면 터치 이벤트 동기화
         // ----------------------------------------------------
+        
+        // 💡 부모 웹사이트(index.html)에서 보내는 가상 패드 조작 신호를 받는 리스너 추가
+        window.addEventListener('message', function(event) {
+            const data = event.data;
+            if (!data || typeof data !== 'object') return;
 
+            // 1. 방향키 및 가감속 키 처리 (setKey)
+            if (data.action === 'setKey' && data.key) {
+                // 기존 Highway.html 내부에 선언된 keys 객체에 상태 반영
+                if (data.key in keys) {
+                    keys[data.key] = data.pressed;
+                }
+            }
+
+            // 2. START 버튼 처리 (screenAction)
+            if (data.action === 'screenAction') {
+                if (gameState === 'TITLE') {
+                    // 타이틀 화면이면 게임 시작
+                    gameState = 'PLAYING';
+                    if (bgm && bgm.paused) {
+                        bgm.play().catch(() => {});
+                    }
+                } else if (gameState === 'GAMEOVER') {
+                    // 게임 오버 화면이면 변수 초기화 후 재시작
+                    resetGame();
+                    gameState = 'PLAYING';
+                }
+            }
+        });
+        
         // 부모(index)에서 postMessage로 조작(모바일 외부 버튼 등)
         window.addEventListener('message', (event) => {
             const data = event?.data;

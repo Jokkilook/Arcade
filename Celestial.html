@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-    <title>소행성 키우기 (모바일 반응형 지원 버전)</title>
+    <title>소행성 키우기 (모바일 반응형 + iframe 호환 버전)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -193,7 +193,6 @@
             w: false, s: false, a: false, d: false
         };
         
-        // 🛠️ 조이스틱 벡터 제어 상태 변수
         let joystickVector = { x: 0, y: 0 };
         let isMobile = false;
 
@@ -219,53 +218,69 @@
         const GRAVITY_CONSTANT = 35.0;   
         const MAX_CELESTIALS = 60;    
 
-        // PC 키보드 입력 스택
-        window.addEventListener('keydown', (e) => {
-            if (e.key in keys) keys[e.key] = true;
-            if (e.key === ' ' || e.key === 'Spacebar') {
+        // 🛠️ 핵심 변경 및 결합: 외부/내부 입력을 동일하게 가로채 처리하는 핸들러 함수 정의
+        function handleGameKeyDown(key) {
+            if (key in keys) keys[key] = true;
+            if (key === ' ' || key === 'Spacebar') {
                 if (isGameOver || isGameClear) {
-                    e.preventDefault(); 
                     resetGame();
                 }
             }
+        }
+
+        function handleGameKeyUp(key) {
+            if (key in keys) keys[key] = false;
+        }
+
+        // PC 자체 키보드 입력 스택 (iframe에 직접 포커스가 잡혀있을 때 작동)
+        window.addEventListener('keydown', (e) => {
+            handleGameKeyDown(e.key);
         });
         window.addEventListener('keyup', (e) => {
-            if (e.key in keys) keys[e.key] = false;
+            handleGameKeyUp(e.key);
         });
 
-        // 🛠️ 모바일 및 터치 인터페이스 대응 시스템 연동
+        // 🛠️ 부모 페이지(index.html)에서 postMessage로 전달한 키 이벤트를 수신하는 리스너 연동
+        window.addEventListener('message', (e) => {
+            if (!e.data || !e.data.type) return;
+
+            if (e.data.type === 'GAME_KEYDOWN') {
+                handleGameKeyDown(e.data.key);
+            } else if (e.data.type === 'GAME_KEYUP') {
+                handleGameKeyUp(e.data.key);
+            }
+        });
+
+        // 모바일 및 터치 인터페이스 대응 시스템 연동
         function enableMobileUI() {
             if (isMobile) return;
             isMobile = true;
-            joystickContainer.style.display = 'block'; // 조이스틱 가시화
+            joystickContainer.style.display = 'block'; 
             controlHintEl.innerText = "조작: 왼쪽 가상 조이스틱 패드 드래그";
             resetHintOver.innerText = "팝업창 또는 화면을 터치해 재시작";
             resetHintClear.innerText = "팝업창 또는 화면을 터치해 재시작";
         }
 
-        // 터치 기반 기기 최초 접근 감지
         window.addEventListener('touchstart', () => {
             enableMobileUI();
         }, { passive: true });
 
-        // 팝업 상황 시 화면 터치만으로 리셋 처리 연동
         window.addEventListener('click', () => {
             if (isGameOver || isGameClear) {
                 resetGame();
             }
         });
 
-        // 🛠️ 조이스틱 제어 물리 연산 스크립트 파트
+        // 조이스틱 제어 물리 연산 스크립트 파트
         let joystickActive = false;
         let joystickCenter = { x: 0, y: 0 };
-        const JOYSTICK_MAX_DIST = 40; // 스틱이 움직일 수 있는 한계 반경
+        const JOYSTICK_MAX_DIST = 40; 
 
         joystickContainer.addEventListener('touchstart', (e) => {
             enableMobileUI();
             joystickActive = true;
             joystickStick.style.background = "rgba(255, 255, 255, 0.9)";
             const rect = joystickContainer.getBoundingClientRect();
-            // 조이스틱의 중심 좌표 캡처
             joystickCenter.x = rect.left + rect.width / 2;
             joystickCenter.y = rect.top + rect.height / 2;
         }, { passive: true });
@@ -281,16 +296,13 @@
             if (dist > JOYSTICK_MAX_DIST) {
                 dx = (dx / dist) * JOYSTICK_MAX_DIST;
                 dy = (dy / dist) * JOYSTICK_MAX_DIST;
-                dist = JOYSTICK_MAX_DIST;
             }
 
-            // 가상 스틱 비주얼 좌표 트랜스폼 반영
             joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
 
-            // 가속 비율 정규화 (-1.0 ~ 1.0)
             joystickVector.x = dx / JOYSTICK_MAX_DIST;
             joystickVector.y = dy / JOYSTICK_MAX_DIST;
-        }, { passive: false }); // preventDefault 연동을 위해 passive false 제어
+        }, { passive: true }); 
 
         window.addEventListener('touchend', () => {
             if (!joystickActive) return;
@@ -490,14 +502,12 @@
         function updatePlayer(dt) {
             if (isExploding || isBlackholing) return; 
 
-            // 🛠️ PC 키보드 입력과 모바일 가상 조이스틱 벡터 연동 결합
             if (keys.ArrowUp || keys.w) player.vy -= BASE_ACCELERATION / camera.zoom;
             if (keys.ArrowDown || keys.s) player.vy += BASE_ACCELERATION / camera.zoom;
             if (keys.ArrowLeft || keys.a) player.vx -= BASE_ACCELERATION / camera.zoom;
             if (keys.ArrowRight || keys.d) player.vx += BASE_ACCELERATION / camera.zoom;
 
             if (isMobile && (joystickVector.x !== 0 || joystickVector.y !== 0)) {
-                // 조이스틱을 가동 중일 경우 벡터 크기에 따라 속도 가중치 부여 추가
                 player.vx += joystickVector.x * (BASE_ACCELERATION * 1.5 / camera.zoom);
                 player.vy += joystickVector.y * (BASE_ACCELERATION * 1.5 / camera.zoom);
             }
