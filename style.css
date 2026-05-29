@@ -1,0 +1,208 @@
+/* 기본 레이아웃 리셋 */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #1a1a1a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    color: #fff;
+}
+
+.game-container {
+    width: 90%;
+    max-width: 800px;
+    background: #2b2b2b;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+}
+
+/* 탭 버튼 스타일 */
+.tab-menu {
+    display: flex;
+    background: #333;
+    border-bottom: 2px solid #444;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 15px;
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.tab-btn:hover {
+    color: #fff;
+    background: #3a3a3a;
+}
+
+/* 활성화된 탭 스타일 */
+.tab-btn.active {
+    color: #00ffcc;
+    background: #2b2b2b;
+    border-bottom: 3px solid #00ffcc;
+}
+
+/* 게임 패널 스타일 */
+/* 기존 .tab-panel의 height: 500px를 지우고 아래처럼 변경 */
+.tab-panel {
+    display: none;
+    width: 100%;
+    position: relative;
+    height: 0;
+    /* 16:9 비율 유지 (9 ÷ 16 = 0.5625 즉, 56.25%) */
+    /* 만약 4:3 비율 게임이라면 75%로 설정 */
+    padding-top: 56.25%; 
+    overflow: hidden;
+    background: #000;
+}
+
+.tab-panel.active {
+    display: block; /* active 클래스가 붙으면 보임 */
+}
+
+.tab-content {
+    position: relative;
+}
+
+.panel-layer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-viewport {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.panel-controls {
+    display: none;
+}
+
+.panel-controls--highway {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+        "steer throttle"
+        "action action";
+    align-items: center;
+    gap: 10px 12px;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: rgba(0, 0, 0, 0.55);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(8px);
+}
+
+.controls-pad {
+    display: flex;
+    gap: 10px;
+}
+
+.controls-pad--steer {
+    grid-area: steer;
+    justify-content: flex-start;
+}
+
+.controls-pad--throttle {
+    grid-area: throttle;
+    justify-content: flex-end;
+}
+
+.control-btn {
+    width: clamp(64px, 18vw, 92px);
+    height: clamp(64px, 18vw, 92px);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.28);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: clamp(20px, 6vw, 30px);
+    font-weight: 700;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.control-btn:active {
+    background: rgba(0, 255, 204, 0.35);
+    border-color: #00ffcc;
+    color: #fff;
+}
+
+.control-btn--action {
+    grid-area: action;
+    justify-self: center;
+    border-radius: 14px;
+    width: 100%;
+    max-width: 320px;
+    min-width: 110px;
+    padding: 0 14px;
+    font-size: clamp(14px, 4vw, 18px);
+    letter-spacing: 0.4px;
+}
+
+/* iframe이 패널을 꽉 채우도록 절대 좌표로 고정 */
+.tab-panel iframe {
+    position: absolute;
+    display: block;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+@media (hover: none) and (pointer: coarse), (max-width: 768px) {
+    body {
+        align-items: stretch;
+    }
+
+    .game-container {
+        width: 100%;
+        max-width: none;
+        min-height: 100vh;
+        height: 100dvh;
+        border-radius: 0;
+    }
+
+    .tab-content {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    .tab-panel {
+        height: 100%;
+        padding-top: 0;
+    }
+
+    .tab-panel.active {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .panel-layer {
+        position: static;
+        inset: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    .panel-controls--highway {
+        display: grid;
+    }
+}

@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Massive Brick Breaker (Mobile Responsive)</title>
+    <style>
+        * { padding: 0; margin: 0; box-sizing: border-box; }
+        body {
+            background: #05050a;
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none; /* 브라우저 기본 스와이프 방지 */
+        }
+        h1 {
+            margin-bottom: 5px;
+            font-size: clamp(18px, 4vw, 26px); /* 화면 크기에 따라 폰트 크기 조절 */
+            letter-spacing: 2px;
+            color: #00ffcc;
+            text-shadow: 0 0 10px rgba(0,255,204,0.4);
+            text-align: center;
+        }
+        #gameCanvas {
+            background: #000;
+            border: 3px solid #333;
+            display: block;
+            /* 반응형 UI 핵심 CSS */
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 4 / 3; /* 800x600 비율 고정 */
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+        }
+        .ui-info {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px 20px;
+            font-size: clamp(11px, 2.5vw, 14px);
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>MASSIVE BRICK CRASHER</h1>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <div class="ui-info">
+        <span>[드래그/방향키] 패들 이동</span>
+        <span>[화면터치/스페이스바] 게임 재시작</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let gameState = 'PLAYING';
+        let score = 0;
+        let totalBricks = 0;
+
+        const paddleHeight = 12;
+        let paddleWidth = 100;
+        let paddleX = (canvas.width - paddleWidth) / 2;
+        let rightPressed = false;
+        let leftPressed = false;
+        let paddleSpeedX = 0; 
+        let lastMouseX = paddleX + paddleWidth / 2;
+
+        const brickRows = 70;
+        const brickCols = 160;
+        const playAreaWidth = 800;
+        const playAreaHeight = 350; 
+        const TOP_MARGIN = 40; 
+        const brickWidth = playAreaWidth / brickCols;   
+        const brickHeight = playAreaHeight / brickRows; 
+        
+        let brickGrid = new Uint8Array(brickCols * brickRows);
+
+        let balls = [];
+        const ballRadius = 3; 
+        const initialBallSpeed = 5.5; 
+        const MAX_BALLS = 200; 
+
+        let items = [];
+        const itemSize = 12;
+        const itemSpeed = 4;
+        const MAX_ITEMS = 4; 
+
+        function initGame() {
+            gameState = 'PLAYING';
+            score = 0;
+            brickGrid.fill(1);
+            totalBricks = brickCols * brickRows;
+
+            balls = [{
+                x: canvas.width / 2,
+                y: canvas.height - 100, 
+                dx: initialBallSpeed * (Math.random() > 0.5 ? 1 : -1),
+                dy: initialBallSpeed 
+            }];
+
+            items = [];
+            paddleX = (canvas.width - paddleWidth) / 2;
+            paddleSpeedX = 0;
+            lastMouseX = paddleX + paddleWidth / 2;
+        }
+
+        // --- 입력(키보드) ---
+        document.addEventListener("keydown", e => {
+            if (e.key === "Right" || e.key === "ArrowRight") rightPressed = true;
+            else if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = true;
+            if (e.key === " " && gameState !== 'PLAYING') initGame(); 
+        });
+        document.addEventListener("keyup", e => {
+            if (e.key === "Right" || e.key === "ArrowRight") rightPressed = false;
+            else if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = false;
+        });
+
+        // --- 💡 입력(마우스 및 모바일 터치 통합) ---
+        function updatePaddlePosition(clientX) {
+            // 반응형으로 줄어든 캔버스의 실제 크기를 구하여 좌표를 내부(800x600) 해상도로 변환
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            let relativeX = (clientX - rect.left) * scaleX;
+
+            if (relativeX > 0 && relativeX < canvas.width) {
+                paddleX = relativeX - paddleWidth / 2;
+                paddleSpeedX = relativeX - lastMouseX;
+                lastMouseX = relativeX;
+            }
+        }
+
+        // 마우스 컨트롤
+        canvas.addEventListener("mousemove", e => {
+            if(gameState === 'PLAYING') updatePaddlePosition(e.clientX);
+        });
+        canvas.addEventListener("mousedown", e => {
+            if (gameState !== 'PLAYING') initGame();
+        });
+
+        // 모바일 터치 컨트롤
+        canvas.addEventListener("touchstart", e => {
+            if (gameState !== 'PLAYING') {
+                initGame();
+                return;
+            }
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            // 첫 터치 시 갑자기 튀는 것을 방지
+            lastMouseX = (e.touches[0].clientX - rect.left) * scaleX;
+            updatePaddlePosition(e.touches[0].clientX);
+        }, { passive: false });
+
+        canvas.addEventListener("touchmove", e => {
+            e.preventDefault(); // 스크롤 등 브라우저 기본 동작 방지
+            if(gameState === 'PLAYING') updatePaddlePosition(e.touches[0].clientX);
+        }, { passive: false });
+
+
+        // --- 물리 및 게임 로직 ---
+        function spawnItem(x, y) {
+            if (items.length < MAX_ITEMS && balls.length < MAX_BALLS) { 
+                if (Math.random() < 0.4) items.push({ x, y });
+            }
+        }
+
+        function drawBricks() {
+            for (let r = 0; r < brickRows; r++) {
+                ctx.fillStyle = `hsl(${(r / brickRows) * 280}, 85%, 55%)`;
+                for (let c = 0; c < brickCols; c++) {
+                    const idx = r * brickCols + c;
+                    if (brickGrid[idx] === 1) {
+                        const bX = c * brickWidth;
+                        const bY = (r * brickHeight) + TOP_MARGIN; 
+                        ctx.fillRect(bX, bY, brickWidth - 0.3, brickHeight - 0.3); 
+                    }
+                }
+            }
+        }
+
+        function drawBalls() {
+            balls.forEach(ball => {
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, ballRadius, 0, Math.PI * 2);
+                ctx.fillStyle = "#fff";
+                ctx.fill();
+                ctx.closePath();
+            });
+        }
+
+        function drawItems() {
+            items.forEach(item => {
+                ctx.beginPath();
+                ctx.rect(item.x, item.y, itemSize, itemSize);
+                ctx.fillStyle = "#00ffcc";
+                ctx.fill();
+                ctx.closePath();
+            });
+        }
+
+        function drawPaddle() {
+            ctx.beginPath();
+            ctx.rect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);
+            ctx.fillStyle = "#00ffcc";
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawScore() {
+            ctx.font = "bold 15px Arial";
+            ctx.fillStyle = "#fff";
+            ctx.fillText("CRUSHED: " + score.toLocaleString() + " / " + totalBricks.toLocaleString(), 20, 575);
+            ctx.fillText("BALLS: " + balls.length + " / " + MAX_BALLS, 280, 575);
+            ctx.fillText("ITEMS: " + items.length + " / 4", 450, 575);
+        }
+
+        function drawEndScreen() {
+            ctx.fillStyle = "rgba(0,0,0,0.85)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.font = "bold 44px Arial";
+            ctx.fillStyle = gameState === 'VICTORY' ? "#00ffcc" : "#ff3333";
+            ctx.textAlign = "center";
+            ctx.fillText(gameState === 'VICTORY' ? "PERFECT CLEAR!" : "GAME OVER", canvas.width/2, canvas.height/2);
+            ctx.font = "18px Arial";
+            ctx.fillStyle = "#fff";
+            ctx.fillText("Score: " + score.toLocaleString() + " Bricks destroyed", canvas.width/2, canvas.height/2 + 45);
+            
+            // 모바일 사용자를 위해 안내 멘트 변경
+            ctx.font = "16px Arial";
+            ctx.fillText("TAP SCREEN OR PRESS SPACE TO RESTART", canvas.width/2, canvas.height/2 + 85);
+            ctx.textAlign = "left";
+        }
+
+        function updateItems() {
+            for (let i = items.length - 1; i >= 0; i--) {
+                let item = items[i];
+                item.y += itemSpeed;
+
+                if (item.y + itemSize > canvas.height - paddleHeight &&
+                    item.x + itemSize > paddleX && item.x < paddleX + paddleWidth) {
+                    splitBalls();
+                    items.splice(i, 1);
+                    continue;
+                }
+                if (item.y > canvas.height) items.splice(i, 1);
+            }
+        }
+
+        function splitBalls() {
+            if (balls.length >= MAX_BALLS) return;
+            const newBalls = [];
+            balls.forEach(b => {
+                if (balls.length + newBalls.length >= MAX_BALLS) return;
+                const speed = Math.sqrt(b.dx * b.dx + b.dy * b.dy);
+                const angle1 = Math.atan2(b.dy, b.dx) + (Math.random() * 0.4 - 0.2);
+                const angle2 = Math.atan2(b.dy, b.dx) + (Math.random() * 0.4 - 0.2);
+                newBalls.push({ x: b.x, y: b.y, dx: Math.cos(angle1) * speed, dy: Math.sin(angle1) * speed });
+                newBalls.push({ x: b.x, y: b.y, dx: Math.cos(angle2) * speed, dy: Math.sin(angle2) * speed });
+            });
+            balls = balls.concat(newBalls);
+        }
+
+        function checkBrickCollision(ball) {
+            const checkX = ball.x;
+            const checkY = ball.y + (ball.dy > 0 ? ballRadius : -ballRadius);
+
+            if (checkX >= 0 && checkX < playAreaWidth && checkY >= TOP_MARGIN && checkY < playAreaHeight + TOP_MARGIN) {
+                const c = Math.max(0, Math.min(brickCols - 1, Math.floor(checkX / brickWidth)));
+                const r = Math.max(0, Math.min(brickRows - 1, Math.floor((checkY - TOP_MARGIN) / brickHeight)));
+                const idx = r * brickCols + c;
+
+                if (brickGrid[idx] === 1) {
+                    brickGrid[idx] = 0; 
+                    score++;
+                    ball.dy = -ball.dy; 
+                    spawnItem(c * brickWidth, (r * brickHeight) + TOP_MARGIN);
+
+                    if (score === totalBricks) gameState = 'VICTORY';
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function updateBalls() {
+            if (balls.length > MAX_BALLS) balls.splice(0, balls.length - MAX_BALLS);
+            const paddleTop = canvas.height - paddleHeight;
+
+            for (let i = balls.length - 1; i >= 0; i--) {
+                let b = balls[i];
+
+                if (b.x + b.dx > canvas.width - ballRadius) {
+                    b.dx = -Math.abs(b.dx);
+                    b.x = canvas.width - ballRadius; 
+                    if (Math.abs(b.dy) < 1.5) b.dy = Math.sign(b.dy) * 1.5;
+                } else if (b.x + b.dx < ballRadius) {
+                    b.dx = Math.abs(b.dx);
+                    b.x = ballRadius; 
+                    if (Math.abs(b.dy) < 1.5) b.dy = Math.sign(b.dy) * 1.5;
+                }
+
+                if (b.y + b.dy < ballRadius) b.dy = Math.abs(b.dy); 
+
+                let nextX = b.x + b.dx;
+                let nextY = b.y + b.dy;
+
+                if (nextX + ballRadius > paddleX && nextX - ballRadius < paddleX + paddleWidth &&
+                    nextY + ballRadius > paddleTop && nextY - ballRadius < canvas.height) {
+                    
+                    if (b.y <= paddleTop && b.dy > 0) {
+                        b.y = paddleTop - ballRadius; 
+                        b.dy = -b.dy; 
+
+                        b.dx += paddleSpeedX * 0.15; 
+                        
+                        const currentSpeed = Math.sqrt(b.dx * b.dx + b.dy * b.dy);
+                        if (Math.abs(b.dx) > currentSpeed * 0.85) {
+                            b.dx = Math.sign(b.dx) * currentSpeed * 0.85;
+                            b.dy = -Math.sqrt(currentSpeed * currentSpeed - b.dx * b.dx);
+                        }
+                    } 
+                    else {
+                        b.dx = -b.dx; 
+                        if (b.x < paddleX) b.x = paddleX - ballRadius;
+                        else b.x = paddleX + paddleWidth + ballRadius;
+                    }
+                } 
+                else if (b.y + b.dy > canvas.height - ballRadius) {
+                    balls.splice(i, 1);
+                    if (balls.length === 0) gameState = 'GAMEOVER';
+                    continue;
+                }
+
+                checkBrickCollision(b);
+                b.x += b.dx;
+                b.y += b.dy;
+            }
+        }
+
+        function handlePaddleMove() {
+            if (rightPressed && paddleX < canvas.width - paddleWidth) {
+                paddleX += 11;
+                paddleSpeedX = 11; 
+            } else if (leftPressed && paddleX > 0) {
+                paddleX -= 11;
+                paddleSpeedX = -11; 
+            } else {
+                paddleSpeedX *= 0.8; 
+            }
+        }
+
+        // 고정 프레임 타임 스텝
+        let lastTime = 0;
+        const TIME_STEP = 1000 / 60; 
+        let accumulatedTime = 0;
+
+        function gameLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            let deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+
+            if (deltaTime > 250) deltaTime = 250; 
+
+            if (gameState === 'PLAYING') {
+                accumulatedTime += deltaTime;
+                while (accumulatedTime >= TIME_STEP) {
+                    updateItems();
+                    updateBalls();
+                    handlePaddleMove();
+                    accumulatedTime -= TIME_STEP;
+                }
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBricks();
+            drawPaddle();
+            drawItems();
+            drawBalls();
+            drawScore();
+            if (gameState !== 'PLAYING') drawEndScreen();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        initGame();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

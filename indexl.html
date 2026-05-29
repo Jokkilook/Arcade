@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>아케이드 게임 천국</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="game-container">
+        <div class="tab-menu">
+            <button class="tab-btn active" data-tab="game1">블록 부수기</button>
+            <button class="tab-btn" data-tab="game2">천체 흡수하기</button>
+            <button class="tab-btn" data-tab="game3">고속도로</button>
+        </div>
+
+        <div class="tab-content">
+            <div id="game1" class="tab-panel active">
+                <div class="panel-layer">
+                    <div class="panel-viewport">
+                        <iframe src="Block.html" title="Block" data-native-width="800" data-native-height="600"></iframe>
+                    </div>
+                </div>
+            </div>
+            <div id="game2" class="tab-panel">
+                <div class="panel-layer">
+                    <div class="panel-viewport">
+                        <iframe src="Celestial.html" title="Celestial" data-native-width="1280" data-native-height="720"></iframe>
+                    </div>
+                </div>
+            </div>
+            <div id="game3" class="tab-panel">
+                <div class="panel-layer">
+                    <div class="panel-viewport">
+                        <iframe id="highwayFrame" src="Highway.html" title="Highway" data-native-width="520" data-native-height="900"></iframe>
+                    </div>
+                    <div class="panel-controls panel-controls--highway" role="group" aria-label="고속도로 조작 버튼">
+                        <div class="controls-pad controls-pad--steer">
+                            <button class="control-btn" type="button" data-key="ArrowLeft" aria-label="왼쪽">◀</button>
+                            <button class="control-btn" type="button" data-key="ArrowRight" aria-label="오른쪽">▶</button>
+                        </div>
+                        <button class="control-btn control-btn--action" type="button" data-action="screenAction" aria-label="시작/재시작">START</button>
+                        <div class="controls-pad controls-pad--throttle">
+                            <button class="control-btn" type="button" data-key="ArrowDown" aria-label="감속">▼</button>
+                            <button class="control-btn" type="button" data-key="ArrowUp" aria-label="가속">▲</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
