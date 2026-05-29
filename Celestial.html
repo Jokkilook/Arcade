@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-    <title>소행성 키우기 (UI 간소화 및 0점 시작 패치)</title>
+    <title>소행성 키우기 (iframe 드래그 간섭 방지 패치)</title>
     <style>
         * {
             box-sizing: border-box;
@@ -22,6 +22,8 @@
             position: fixed; /* iOS 스크롤 튕김 방지 */
             width: 100%;
             height: 100%;
+            /* 🛠️ CSS 레벨에서 브라우저 터치 액션(스크롤, 줌 등)을 원천 차단 */
+            touch-action: none; 
         }
         canvas {
             display: block;
@@ -220,9 +222,14 @@
             resetHintClear.innerText = "팝업창 또는 화면을 터치해 재시작";
         }
 
+        // 🛠️ 핵심 변경 패치: { passive: false }를 활성화하고 e.preventDefault()와 e.stopPropagation() 연동
+        // 부모 페이지로의 스크롤 및 터치 이벤트 간섭을 물리적으로 완벽 차단합니다.
         window.addEventListener('touchstart', (e) => {
             enableMobileUI();
             if (isGameOver || isGameClear) return;
+            
+            // iframe 바깥 부모 영역으로 터치 신호가 유출되는 것을 차단
+            e.stopPropagation(); 
             
             touchActive = true;
             const touch = e.touches[0];
@@ -230,11 +237,15 @@
             touchStartPos.y = touch.clientY;
             touchMoveVector.x = 0;
             touchMoveVector.y = 0;
-        }, { passive: true });
+        }, { passive: false }); // 스크롤 차단(preventDefault)을 강제하기 위해 passive를 false로 변경
 
         window.addEventListener('touchmove', (e) => {
             if (!touchActive) return;
             
+            // 🛠️ 중요: 브라우저가 화면 전체(부모 창 포함)를 스크롤 하려는 행위를 강제 거부
+            if (e.cancelable) e.preventDefault(); 
+            e.stopPropagation();
+
             const touch = e.touches[0];
             const dx = touch.clientX - touchStartPos.x;
             const dy = touch.clientY - touchStartPos.y;
@@ -249,13 +260,14 @@
                 touchMoveVector.x = (dx / dist) * scalar;
                 touchMoveVector.y = (dy / dist) * scalar;
             }
-        }, { passive: true });
+        }, { passive: false }); // 여기도 passive: false 필수!
 
-        window.addEventListener('touchend', () => {
+        window.addEventListener('touchend', (e) => {
+            e.stopPropagation();
             touchActive = false;
             touchMoveVector.x = 0;
             touchMoveVector.y = 0;
-        }, { passive: true });
+        }, { passive: false });
 
         window.addEventListener('click', () => {
             if (isGameOver || isGameClear) {
@@ -570,7 +582,6 @@
                         }
 
                         let currentActualMass = player.radius * globalScoreMultiplier;
-                        // 🛠️ 시작 크기(15)를 제외하여 순수 0점부터 올라가도록 연산 동기화
                         let currentScore = Math.max(0, Math.floor(currentActualMass - 15));
 
                         if (currentScore >= WIN_MASS_LIMIT) {
@@ -620,14 +631,13 @@
                 }
             }
 
-            // 🛠️ 초기 본체 크기(15) 차감 연산으로 0점부터 정직하게 상승
             scoreEl.innerText = Math.max(0, Math.floor(player.radius * globalScoreMultiplier - 15));
         }
 
         function startBlackholeSequence() {
             isBlackholing = true;
             player.color = '#000002'; 
-            scoreEl.innerText = WIN_MASS_LIMIT; // 🛠️ 블랙홀 시퀀스 진입 순간 클리어 스코어로 즉시 못박기
+            scoreEl.innerText = WIN_MASS_LIMIT; 
             
             for (let i = 0; i < 120; i++) {
                 particles.push(new Particle(0, 0, 'blackhole'));
